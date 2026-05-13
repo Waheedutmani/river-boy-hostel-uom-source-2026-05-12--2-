@@ -1,0 +1,365 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  name         String
+  role         String    @default("student") // student, admin, warden
+  phone        String?
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  student      Student?
+  notifications Notification[]
+  aiQueryLimit  AiQueryLimit?
+}
+
+model Hostel {
+  id          String        @id @default(cuid())
+  name        String
+  type        String        // Boys, Girls, Co-ed
+  totalRooms  Int
+  address     String?
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  rooms       Room[]
+  staff       Staff[]
+  applications Application[]
+}
+
+model Room {
+  id          String              @id @default(cuid())
+  number      String
+  floor       Int
+  capacity    Int
+  hostelId    String
+  hostel      Hostel              @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  status      String              @default("Available") // Available, Occupied, Maintenance
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  students    Student[]
+  maintenanceRequests MaintenanceRequest[]
+  visitors     Visitor[]
+}
+
+model Student {
+  id               String              @id @default(cuid())
+  userId           String              @unique
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rollNo           String              @unique
+  department       String
+  semester         Int
+  roomId           String?
+  room             Room?               @relation(fields: [roomId], references: [id])
+  guardianName     String?
+  guardianPhone    String?
+  address          String?
+  bloodGroup       String?
+  emergencyContact String?
+  status           String              @default("Active") // Active, Inactive, Graduated
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  fees             Fee[]
+  complaints       Complaint[]
+  applications     Application[]
+  maintenanceRequests MaintenanceRequest[]
+  movements        StudentMovement[]
+  visitors         Visitor[]
+}
+
+model Fee {
+  id                  String     @id @default(cuid())
+  studentId           String
+  student             Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount              Float
+  month               String
+  year                Int
+  status              String     @default("Pending") // Paid, Pending, Overdue, Partially Paid
+  paidDate            DateTime?
+  feeType             String     @default("Room Rent") // Room Rent, Mess Fee, Electricity, Maintenance, Other
+  receiptNo           String?
+  lateFine            Float      @default(0)
+  paymentMethod       String?    // Cash, Bank Transfer, EasyPaisa, JazzCash
+  dueDate             DateTime?
+  partiallyPaidAmount Float      @default(0)
+  nextDueDate         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  payments            Payment[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([feeType])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  feeId         String
+  fee           Fee       @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod String    // Cash, Bank Transfer, EasyPaisa, JazzCash
+  referenceNo   String?   // Transaction reference number
+  paidBy        String?   // Who made the payment
+  verifiedBy    String?   // Admin who verified
+  verifiedAt    DateTime?
+  status        String    @default("Pending") // Pending, Verified, Rejected
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([feeId])
+  @@index([status])
+  @@index([paymentMethod])
+}
+
+model FeeStructure {
+  id          String    @id @default(cuid())
+  name        String    // Monthly Hostel Fee, Security Fee, Mess Fee, etc.
+  amount      Float
+  feeType     String    // Monthly Hostel Fee, Security Fee, Mess Fee, Maintenance Charges, Electricity Charges, Internet/WiFi Charges
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model LateFineConfig {
+  id              String    @id @default(cuid())
+  gracePeriodDays Int       @default(5)
+  finePerDay      Float     @default(50)
+  maxFine         Float     @default(2000)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Complaint {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    String    // Plumbing, Electrical, Cleaning, Internet, Other
+  status      String    @default("Open") // Open, In Progress, Resolved
+  priority    String    @default("Medium") // Low, Medium, High
+  adminReply  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Notice {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  category    String    // General, Maintenance, Event, Emergency
+  priority    String    @default("Normal") // Normal, Important, Urgent
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Application {
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelId        String
+  hostel          Hostel    @relation(fields: [hostelId], references: [id])
+  preferredRoom   String?
+  status          String    @default("Pending") // Pending, Approved, Rejected
+  message         String?
+  adminRemark     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Staff {
+  id          String    @id @default(cuid())
+  name        String
+  role        String    // Warden, Clerk, Security, Cleaner, Electrician, Plumber
+  phone       String
+  hostelId    String
+  hostel      Hostel    @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  salary      Float?
+  joinDate    DateTime?
+  status      String    @default("Active") // Active, On Leave, Inactive
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MaintenanceRequest {
+  id          String    @id @default(cuid())
+  roomId      String
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  category    String    // Plumbing, Electrical, Furniture, Cleaning, AC, Other
+  status      String    @default("Pending") // Pending, In Progress, Completed
+  priority    String    @default("Medium") // Low, Medium, High
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  type        String    @default("info") // info, success, warning, error
+  category    String    @default("General") // Payments, Complaints, Leave Requests, Emergency Alerts, Maintenance, Visitor Logs, Announcements, Room Management, General
+  priority    String    @default("Normal") // Normal, Important, Critical, Emergency
+  read        Boolean   @default(false)
+  actionUrl   String?   // URL to navigate when notification is clicked
+  isBroadcast Boolean   @default(false) // Whether this is a broadcast notification
+  senderName  String?   // Who sent the notification
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, read])
+  @@index([userId, category])
+  @@index([userId, priority])
+  @@index([isBroadcast])
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  category    String    @default("General") // General, Maintenance, Event, Emergency
+  priority    String    @default("Normal") // Normal, Important, Urgent, Emergency
+  type        String    @default("Notice") // Notice, Emergency Broadcast, Maintenance Alert, Scheduled
+  targetRole  String    @default("all") // all, student, admin, warden
+  isActive    Boolean   @default(true)
+  scheduledAt DateTime? // For scheduled announcements
+  expiresAt   DateTime? // When the announcement expires
+  createdBy   String?   // Admin/warden name
+  createdById String?   // Admin/warden user ID
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model StudentMovement {
+  id                    String    @id @default(cuid())
+  studentId             String
+  student               Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reason                String    // Going Home, Emergency Leave, University Work, Vacation, Other
+  departureDate         DateTime
+  expectedReturnDate    DateTime
+  actualReturnDate      DateTime?
+  destination           String?
+  guardianContact       String?
+  notes                 String?
+  departureSignature    String?   // base64 signature data
+  returnSignature       String?   // base64 signature data
+  status                String    @default("Pending") // Pending, Approved, Rejected, Out, Returned, Late Return
+  approvedBy            String?
+  adminRemark           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Visitor {
+  id                  String    @id @default(cuid())
+  visitorName         String
+  cnic                String
+  contactNumber       String
+  relationWithStudent String
+  studentId           String
+  student             Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  roomId              String?
+  room                Room?     @relation(fields: [roomId], references: [id])
+  visitPurpose        String
+  visitDate           DateTime
+  entryTime           DateTime?
+  exitTime            DateTime?
+  status              String    @default("Pending") // Pending, Approved, Rejected, Checked In, Checked Out
+  approvedBy          String?
+  adminRemark         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@index([visitDate])
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  userId      String?
+  userName    String
+  userRole    String    // student, admin, warden
+  action      String    // login, logout, create, update, delete, approve, reject, access_denied, password_change
+  category    String    // auth, student, room, fee, complaint, maintenance, leave, visitor, staff, notice, system
+  description String
+  ipAddress   String?
+  userAgent   String?
+  metadata    String?   // JSON string for additional data
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model SecurityAlert {
+  id          String    @id @default(cuid())
+  type        String    // failed_login, unauthorized_access, suspicious_activity, password_breach, account_locked
+  severity    String    @default("medium") // low, medium, high, critical
+  userId      String?
+  userName    String?
+  description String
+  ipAddress   String?
+  isResolved  Boolean   @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([isResolved])
+  @@index([createdAt])
+}
+
+model AiQueryLimit {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queryCount    Int      @default(0)
+  lastResetDate String   // YYYY-MM-DD format for easy comparison
+  isDisabled    Boolean  @default(false) // Admin can disable AI access for user
+  disabledBy    String?  // Admin user ID who disabled
+  disabledReason String? // Reason for disabling
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([lastResetDate])
+}
+
+model AiQueryLog {
+  id          String   @id @default(cuid())
+  userId      String
+  userName    String
+  userRole    String   // student, admin
+  query       String   // The user's query text
+  intent      String?  // Detected intent
+  mode        String?  // hostel, academic, coding, general
+  responseTime Int?    // Response time in ms
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userRole])
+}
